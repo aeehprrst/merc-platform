@@ -196,19 +196,33 @@ export default function CampusMarketplace({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredSales.length > 0 ? (
               filteredSales.map((item) => (
-                <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-all group flex flex-col">
+                <div key={item.id} className={`bg-white p-6 rounded-2xl shadow-sm border border-slate-200 transition-all group flex flex-col relative ${item.is_sold ? 'opacity-60 bg-slate-50' : 'hover:shadow-md'}`}>
+                  
                   <div className="w-full h-48 bg-slate-100 rounded-xl mb-4 overflow-hidden relative group-hover:opacity-90 transition-opacity">
+                    {/* NEW: The SOLD Badge over the image */}
+                    {item.is_sold && (
+                      <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center z-10 backdrop-blur-[2px]">
+                        <span className="bg-slate-900 text-white font-black text-sm tracking-widest uppercase px-6 py-2 rounded-full border-2 border-white/20 shadow-xl">
+                          Sold Out
+                        </span>
+                      </div>
+                    )}
+                    
                     {item.image_url ? (
                       <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-400 font-medium">{item.category}</div>
                     )}
                   </div>
+                  
                   <div className="flex justify-between items-start mb-2 gap-2">
-                    <h3 className="text-lg font-bold text-slate-900 leading-tight">{item.title}</h3>
+                    {/* We add line-through to the title if sold */}
+                    <h3 className={`text-lg font-bold text-slate-900 leading-tight ${item.is_sold ? 'line-through decoration-slate-400' : ''}`}>
+                      {item.title}
+                    </h3>
                     <div className="flex flex-col items-end gap-1">
                       <span className="bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-full text-sm whitespace-nowrap">Buy ₹{item.price}</span>
-                      {item.is_rentable && (
+                      {item.is_rentable && !item.is_sold && (
                         <span className="bg-amber-50 text-amber-700 font-bold px-3 py-1 rounded-full text-xs whitespace-nowrap border border-amber-200">Rent ₹{item.rental_price_per_day}/day</span>
                       )}
                     </div>
@@ -233,12 +247,19 @@ export default function CampusMarketplace({
   <span className="text-slate-400 text-xs">({item.profiles?.total_reviews || 0})</span>
 </div>
 
-                  <button 
-                    onClick={() => handleStartChat(item.id, item.seller_id)}
-                    className="w-full py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition-colors mt-auto"
-                  >
-                    Contact Seller
-                  </button>
+                  {/* The Chat Button (Disabled if Sold) */}
+                  {item.is_sold ? (
+                    <button disabled className="w-full py-2 bg-slate-100 text-slate-400 font-bold tracking-widest uppercase text-xs rounded-lg mt-auto cursor-not-allowed">
+                      Item Sold
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => handleStartChat(item.id, item.seller_id)}
+                      className="w-full py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition-colors mt-auto"
+                    >
+                      Contact Seller
+                    </button>
+                  )}
                 </div>
               ))
             ) : (
@@ -265,9 +286,19 @@ export default function CampusMarketplace({
                     <span className="text-indigo-700 font-bold text-sm bg-white px-3 py-1 rounded-full shadow-sm">Budget: ₹{item.price}</span>
                   </div>
                   <p className="text-sm text-indigo-800/80 line-clamp-2 mb-4">{item.description}</p>
-                  <button onClick={() => handleStartChat(item.id, item.seller_id)} className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
-                    I have this item →
-                  </button>
+                  {/* The Chat Button (Disabled if Closed) */}
+                  {item.is_sold ? (
+                    <span className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                      Request Closed
+                    </span>
+                  ) : (
+                    <button 
+                      onClick={() => handleStartChat(item.id, item.seller_id)}
+                      className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                    >
+                      I have this item →
+                    </button>
+                  )}
                 </div>
               ))
             ) : (

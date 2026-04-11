@@ -28,7 +28,6 @@ export default function UserDashboard({
       
       setUserEmail(session.user.email || '');
 
-      // Fetch ONLY the items posted by this specific user
       const { data: items } = await supabase
         .from('items')
         .select('*')
@@ -43,21 +42,35 @@ export default function UserDashboard({
   }, [router]);
 
   const handleDelete = async (itemId: string) => {
-    // Confirm before deleting to prevent accidental clicks
     if (!window.confirm("Are you sure you want to delete this listing? It cannot be undone.")) return;
 
-    // Delete from Supabase
-    const { error } = await supabase
-      .from('items')
-      .delete()
-      .eq('id', itemId);
+    const { error } = await supabase.from('items').delete().eq('id', itemId);
 
     if (error) {
       alert("Error deleting item.");
       console.error(error);
     } else {
-      // Instantly remove it from the screen without refreshing the page
       setMyItems((current) => current.filter((item) => item.id !== itemId));
+    }
+  };
+
+  // --- NEW: TOGGLE SOLD STATUS ---
+  const handleToggleSold = async (itemId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus; // Flips true to false, or false to true
+    
+    const { error } = await supabase
+      .from('items')
+      .update({ is_sold: newStatus })
+      .eq('id', itemId);
+
+    if (error) {
+      alert("Error updating status.");
+      console.error(error);
+    } else {
+      // Instantly update the UI without refreshing
+      setMyItems((current) => current.map((item) => 
+        item.id === itemId ? { ...item, is_sold: newStatus } : item
+      ));
     }
   };
 
@@ -67,7 +80,6 @@ export default function UserDashboard({
     <main className="flex min-h-screen flex-col items-center p-6 md:p-24 bg-slate-50 pt-32">
       <div className="w-full max-w-5xl">
         
-        {/* Dashboard Header */}
         <div className="bg-slate-900 text-white rounded-3xl p-8 md:p-12 mb-12 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
             <h1 className="text-3xl font-extrabold mb-2">Student Dashboard</h1>
@@ -86,24 +98,45 @@ export default function UserDashboard({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {myItems.length > 0 ? (
             myItems.map((item) => (
-              <div key={item.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-                <div className="flex justify-between items-start mb-4">
-                  <span className={`text-xs font-bold px-3 py-1 rounded-full ${item.listing_type === 'REQUEST' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                    {item.listing_type === 'REQUEST' ? 'WTB REQUEST' : 'SELLING'}
-                  </span>
+              <div key={item.id} className={`bg-white p-6 rounded-2xl shadow-sm border ${item.is_sold ? 'border-slate-300 bg-slate-50' : 'border-slate-200'} flex flex-col relative overflow-hidden transition-all`}>
+                
+                <div className={`flex justify-between items-start mb-4 ${item.is_sold ? 'opacity-50' : ''}`}>
+                  <div className="flex flex-col items-start gap-2">
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${item.listing_type === 'REQUEST' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {item.listing_type === 'REQUEST' ? 'WTB REQUEST' : 'SELLING'}
+                    </span>
+                    {item.is_sold && (
+                      <span className="bg-slate-900 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-sm">
+                        Sold / Closed
+                      </span>
+                    )}
+                  </div>
                   <span className="font-bold text-slate-700">₹{item.price}</span>
                 </div>
                 
-                <h3 className="text-lg font-bold text-slate-900 mb-2">{item.title}</h3>
-                <p className="text-sm text-slate-500 line-clamp-2 mb-6 flex-grow">{item.description}</p>
+                <h3 className={`text-lg font-bold text-slate-900 mb-2 ${item.is_sold ? 'opacity-50 line-through' : ''}`}>{item.title}</h3>
+                <p className={`text-sm text-slate-500 line-clamp-2 mb-6 flex-grow ${item.is_sold ? 'opacity-50' : ''}`}>{item.description}</p>
                 
-                {/* Delete Button */}
-                <button 
-                  onClick={() => handleDelete(item.id)}
-                  className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors mt-auto border border-red-100"
-                >
-                  Delete Listing
-                </button>
+                {/* --- ACTION BUTTONS --- */}
+                <div className="flex gap-2 mt-auto">
+                  <button 
+                    onClick={() => handleToggleSold(item.id, item.is_sold)}
+                    className={`flex-1 py-3 text-sm font-bold rounded-xl transition-colors border ${
+                      item.is_sold 
+                      ? 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100' 
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {item.is_sold ? "Re-list Item" : "Mark as Sold"}
+                  </button>
+
+                  <button 
+                    onClick={() => handleDelete(item.id)}
+                    className="flex-1 py-3 bg-red-50 text-red-600 text-sm font-bold rounded-xl hover:bg-red-100 transition-colors border border-red-100"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             ))
           ) : (
