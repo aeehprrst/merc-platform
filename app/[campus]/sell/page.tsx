@@ -21,7 +21,7 @@ export default function SellPage({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // NEW: Renting State
+  // Renting State
   const [isRentable, setIsRentable] = useState(false);
   const [rentalPrice, setRentalPrice] = useState('');
 
@@ -47,6 +47,7 @@ export default function SellPage({
 
     let imageUrl = null;
     
+    // 1. Upload Image to Supabase (if provided)
     if (imageFile) {
       const fileExt = imageFile.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -64,7 +65,40 @@ export default function SellPage({
       imageUrl = publicUrlData.publicUrl;
     }
 
-    // NEW: Include renting data in the database insert
+    // --- 🚨 THE AI BOUNCER CHECK 🚨 ---
+    // Only run if it's a sale and they uploaded an image for the AI to check
+    if (listingType === 'SALE' && imageUrl) {
+      alert("Hold on! Our AI is reviewing your listing for campus safety...");
+
+      try {
+        const aiResponse = await fetch('/api/moderate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            title: title, 
+            description: description, 
+            imageUrl: imageUrl 
+          })
+        });
+        
+        const aiData = await aiResponse.json();
+
+        if (aiData.verdict === 'REJECTED') {
+          // Now showing the actual reason from Gemini!
+          alert(`🛑 POST REJECTED: ${aiData.reason || "Safety violation detected."}`);
+          setLoading(false);
+          return; 
+        }
+      } catch (err) {
+        console.error("AI Moderation failed:", err);
+        alert("Error connecting to AI Moderation. Please try again.");
+        setLoading(false);
+        return;
+      }
+    }
+    // ----------------------------------------
+
+    // 2. Insert into Database (Because AI Approved it!)
     const { error } = await supabase.from('items').insert([
       {
         title,
@@ -76,7 +110,8 @@ export default function SellPage({
         listing_type: listingType,
         image_url: imageUrl,
         is_rentable: listingType === 'SALE' ? isRentable : false,
-        rental_price_per_day: isRentable && listingType === 'SALE' ? parseFloat(rentalPrice) : 0
+        rental_price_per_day: isRentable && listingType === 'SALE' ? parseFloat(rentalPrice) : 0,
+        status: 'APPROVED' // <-- Set to Approved so it shows up on the Hub!
       }
     ]);
 
@@ -115,10 +150,10 @@ export default function SellPage({
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Category</label>
               <select 
-  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-600 outline-none bg-white text-slate-900 font-medium" 
-  value={category} 
-  onChange={(e) => setCategory(e.target.value)}
->
+                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-600 outline-none bg-white text-slate-900 font-medium" 
+                value={category} 
+                onChange={(e) => setCategory(e.target.value)}
+              >
                 <option>Academic Books</option>
                 <option>Electronics</option>
                 <option>Stationery & Tools</option>
@@ -127,7 +162,7 @@ export default function SellPage({
             </div>
           </div>
 
-          {/* NEW: Renting Options Section */}
+          {/* Renting Options Section */}
           {listingType === 'SALE' && (
             <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 mt-2">
               <div className="flex items-center justify-between mb-4">
@@ -153,17 +188,17 @@ export default function SellPage({
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">Description</label>
             <textarea 
-  rows={4} 
-  className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-600 outline-none resize-none text-slate-900 font-medium" 
-  value={description} 
-  onChange={(e) => setDescription(e.target.value)} 
-  required 
-></textarea>
+              rows={4} 
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-600 outline-none resize-none text-slate-900 font-medium" 
+              value={description} 
+              onChange={(e) => setDescription(e.target.value)} 
+              required 
+            ></textarea>
           </div>
 
           {listingType === 'SALE' && (
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Upload Photo (Optional)</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Upload Photo</label>
               <input type="file" accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { setImageFile(e.target.files[0]); } }} className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-slate-50 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
             </div>
           )}

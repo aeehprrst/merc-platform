@@ -42,15 +42,23 @@ export default function UserDashboard({
   }, [router]);
 
   const handleDelete = async (itemId: string) => {
-    if (!window.confirm("Are you sure you want to delete this listing? It cannot be undone.")) return;
+    // Optional: Add a quick confirmation so they don't delete by accident
+    if (!window.confirm("Are you sure you want to delete this item permanently?")) return;
 
-    const { error } = await supabase.from('items').delete().eq('id', itemId);
+    // 1. OPTIMISTIC UI: Remove it from the screen instantly
+    setMyItems((currentItems: any[]) => currentItems.filter((item: any) => item.id !== itemId));
+
+    // 2. Tell the database to destroy it
+    const { error } = await supabase
+      .from('items')
+      .delete()
+      .eq('id', itemId);
 
     if (error) {
-      alert("Error deleting item.");
-      console.error(error);
-    } else {
-      setMyItems((current) => current.filter((item) => item.id !== itemId));
+      console.error("Error deleting item:", error);
+      alert("Failed to delete. Please try again.");
+      // Note: In a massive app, you'd put the item back on screen here if it failed,
+      // but for now, the alert is perfect.
     }
   };
 

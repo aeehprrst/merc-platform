@@ -42,6 +42,7 @@ export default function CampusMarketplace({
         .from('items')
         .select('*, profiles:seller_id(full_name, average_rating, total_reviews)')
         .eq('university_id', uniData.id)
+        .eq('status', 'APPROVED')
         .order('created_at', { ascending: false });
 
       if (items) {
@@ -54,6 +55,58 @@ export default function CampusMarketplace({
     fetchMarketplaceData();
   }, [searchDomain, router]);
 
+  // --- THE CHAT BRIDGE FUNCTION ---
+  const handleStartChat = async (itemId: string, sellerId: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      alert("Please log in to send a message.");
+      router.push('/login');
+      return;
+    }
+
+    const buyerId = session.user.id;
+
+    if (buyerId === sellerId) {
+      alert("You cannot message yourself about your own item!");
+      return;
+    }
+
+    // 1. Check if a chat already exists
+    const { data: existingChats } = await supabase
+      .from('chats')
+      .select('id')
+      .eq('item_id', itemId)
+      .eq('buyer_id', buyerId)
+      .eq('seller_id', sellerId);
+
+    let chatId;
+
+    if (existingChats && existingChats.length > 0) {
+      // Chat exists! Grab the ID.
+      chatId = existingChats[0].id;
+    } else {
+      // 2. No chat found. Create a new one!
+      const { data: newChat, error: chatError } = await supabase
+        .from('chats')
+        .insert([{ 
+          item_id: itemId, 
+          buyer_id: buyerId, 
+          seller_id: sellerId 
+        }])
+        .select()
+        .single();
+
+      if (chatError) {
+        alert("Could not start chat. Please try again.");
+        return;
+      }
+      chatId = newChat.id;
+    }
+
+    // 3. Send the user to their sleek new chat window
+    router.push(`/${campusCode.toLowerCase()}/messages/${chatId}`);
+  };
   // --- NEW: FILTER LOGIC ---
   const filteredSales = sales.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -68,57 +121,6 @@ export default function CampusMarketplace({
     const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
-
-  const handleStartChat = async (itemId: string, sellerId: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      alert("Please log in to send a message.");
-      router.push('/login');
-      return;
-    }
-
-    const buyerId = session.user.id;
-    if (buyerId === sellerId) {
-      alert("You cannot message yourself about your own item!");
-      return;
-    }
-
-    const { data: profile } = await supabase.from('profiles').select('id').eq('id', buyerId).single();
-
-    if (!profile) {
-      await supabase.from('profiles').insert([
-        { 
-          id: buyerId, 
-          email: session.user.email, 
-          full_name: session.user.email?.split('@')[0] 
-        }
-      ]);
-    }
-
-    const { data: existingChats } = await supabase
-      .from('chats')
-      .select('id')
-      .eq('item_id', itemId)
-      .eq('buyer_id', buyerId)
-      .eq('seller_id', sellerId);
-
-    let chatId;
-    if (existingChats && existingChats.length > 0) {
-      chatId = existingChats[0].id;
-    } else {
-      const { data: newChat, error: chatError } = await supabase
-        .from('chats')
-        .insert([{ item_id: itemId, buyer_id: buyerId, seller_id: sellerId }])
-        .select()
-        .single();
-
-      if (chatError) return;
-      chatId = newChat.id;
-    }
-
-    router.push(`/${campusCode.toLowerCase()}/messages/${chatId}`);
-  };
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center pt-32 text-slate-500 font-medium">Loading {campusCode.toUpperCase()} Marketplace...</div>;
@@ -247,15 +249,15 @@ export default function CampusMarketplace({
   <span className="text-slate-400 text-xs">({item.profiles?.total_reviews || 0})</span>
 </div>
 
-                  {/* The Chat Button (Disabled if Sold) */}
+                  {/* The Chat Button */}
                   {item.is_sold ? (
-                    <button disabled className="w-full py-2 bg-slate-100 text-slate-400 font-bold tracking-widest uppercase text-xs rounded-lg mt-auto cursor-not-allowed">
+                    <button disabled className="w-full py-3 bg-slate-100 text-slate-400 font-bold tracking-widest uppercase text-xs rounded-xl mt-auto cursor-not-allowed">
                       Item Sold
                     </button>
                   ) : (
                     <button 
                       onClick={() => handleStartChat(item.id, item.seller_id)}
-                      className="w-full py-2 bg-slate-100 text-slate-700 font-semibold rounded-lg hover:bg-slate-200 transition-colors mt-auto"
+                      className="w-full py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-600 hover:text-white transition-colors mt-auto shadow-sm"
                     >
                       Contact Seller
                     </button>
@@ -309,6 +311,21 @@ export default function CampusMarketplace({
           </div>
         </div>
 
+      </div>
+      {/* --- CORRECTED FLOATING INBOX --- */}
+      <div className="fixed bottom-6 right-6 z-[9999]">
+        <button 
+          onClick={() => router.push(`/${campusCode.toLowerCase()}/messages`)}
+          className="flex items-center gap-3 bg-white text-slate-900 px-5 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-slate-200 hover:border-indigo-500 hover:shadow-indigo-200/50 transition-all duration-300 group"
+        >
+          <div className="relative">
+            <svg className="w-6 h-6 text-slate-700 group-hover:text-indigo-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+            </svg>
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-600 rounded-full border-2 border-white"></span>
+          </div>
+          <span className="font-bold text-sm tracking-tight">Messages</span>
+        </button>
       </div>
     </main>
   );
