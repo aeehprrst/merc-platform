@@ -20,18 +20,22 @@ export async function POST(req: Request) {
 
     // 5. The Bouncer's Rulebook (The Prompt)
     const prompt = `
-      You are a basic safety filter for a campus marketplace. 
-      Your ONLY job is to check if the item being sold is illegal or highly dangerous.
+      You are the final safety bouncer for a university marketplace. 
+      Your ONLY job is to flag strictly illegal or highly dangerous items.
 
       Item Title: "${title}"
       Item Description: "${description}"
 
       RULES:
-      1. IGNORE whether the image matches the text.
-      2. ONLY REJECT if you clearly see: Drugs, alcohol, weapons, or explicit content.
+      1. APPROVE ALMOST EVERYTHING. Electronics, gaming mice, laptops, bicycles, clothes, furniture, and study materials are 100% ALLOWED.
+      2. IGNORE whether the image perfectly matches the text.
+      3. REJECT ONLY IF you clearly see or read about:
+         - Drugs, alcohol, cigarettes, or vapes.
+         - Weapons (guns, knives, explosives).
+         - Explicit or adult content.
       
       If it is a normal, legal item, respond ONLY with "APPROVED".
-      If it is dangerous, respond with "REJECTED: [short reason]".
+      If it is strictly illegal, respond with "REJECTED: [short reason]".
     `;
 
     const imagePart = {
@@ -40,16 +44,23 @@ export async function POST(req: Request) {
         mimeType: mimeType,
       },
     };
-    // 🚨 THE TRUE BYPASS: If it's clearly educational, don't even ask the AI.
+
+    // 🚨 THE ULTIMATE BYPASS: Auto-approve tech, books, and common campus items
     const lowerTitle = title.toLowerCase();
-    const isBook = lowerTitle.includes('book') || lowerTitle.includes('math') || lowerTitle.includes('notes');
+    const autoApproveWords = [
+      'book', 'math', 'notes', 'calculator', // Academics
+      'mouse', 'keyboard', 'laptop', 'phone', 'gaming', 'pc', 'earbuds', 'headphones', 'monitor', // Tech
+      'bicycle', 'cycle', 'bike', 'bag', 'bottle', 'clothes', 'shoes' // Everyday items
+    ];
     
-    if (isBook) {
-      console.log(`Auto-approving educational item: ${title}`);
-      return NextResponse.json({ verdict: "APPROVED", reason: "Auto-approved educational material" });
+    const isAutoSafe = autoApproveWords.some(word => lowerTitle.includes(word));
+    
+    if (isAutoSafe) {
+      console.log(`Auto-approving safe item: ${title}`);
+      return NextResponse.json({ verdict: "APPROVED", reason: "Auto-approved safe category" });
     }
 
-    // If it's not a book, ask the AI
+    // If it's not in the bypass list, ask the AI
     const result = await model.generateContent([prompt, imagePart]);
     const fullResponse = result.response.text().trim().toUpperCase();
     
